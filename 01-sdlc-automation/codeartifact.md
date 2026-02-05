@@ -1,50 +1,102 @@
 # AWS CodeArtifact
 
-- Used to store and manage software dependencies and libraries
-- Storing and retrieving these dependencies is called artifact management
-- CodeArtifact is a secure, scalable and cost-effective artifact management for software development
-- Works with common dependency management tools such as Maven, Gradle, npm, yarn, twine, pip and NuGet
-- Developers and CodeBuild can retrieve dependencies straight from CodeArtifact
-- CodeArtifact can act as a proxy for public repositories such as npm, Maven Central, etc. CodeArtifact will also cached these dependencies
+- Dùng để lưu trữ và quản lý các thư viện và phần mềm phụ thuộc (software dependencies)
+- Việc lưu trữ và lấy các dependency này được gọi là quản lý artifact (artifact management)
+- CodeArtifact là dịch vụ quản lý artifact an toàn, có khả năng mở rộng và tiết kiệm chi phí cho phát triển phần mềm
+- Hỗ trợ các công cụ quản lý dependency phổ biến như:
+  - Maven
+  - Gradle
+  - npm
+  - yarn
+  - twine
+  - pip
+  - NuGet
+- Developers và AWS CodeBuild có thể lấy dependency trực tiếp từ CodeArtifact
+- CodeArtifact có thể hoạt động như một proxy cho các public repository như:
+  - npm
+  - Maven Central
+  - PyPI
+  - NuGet
+- CodeArtifact sẽ cache các dependency này
 
-## Event Bridge Integration
+---
 
-- CodeArtifact Events (such as a version of a package is created, modified, deleted) will emit events to EventBridge
-- These events can be input for Lambda, SNS, SQS or they can trigger CodePipeline
+## Tích hợp EventBridge
+
+- Các sự kiện của CodeArtifact (ví dụ: khi một phiên bản package được tạo, sửa hoặc xóa) sẽ được gửi (emit) tới Amazon EventBridge
+- Các sự kiện này có thể dùng làm input cho:
+  - AWS Lambda
+  - Amazon SNS
+  - Amazon SQS
+- Các sự kiện cũng có thể kích hoạt AWS CodePipeline
+
+---
 
 ## Resource Policy
 
-- Can be used to authorize another account to access CodeArtifact
-- A given principal can either read all the packages in a repository or non of them
+- Có thể dùng để cấp quyền cho AWS account khác truy cập CodeArtifact
+- Một principal chỉ có thể:
+  - Đọc tất cả package trong một repository
+  - Hoặc không được đọc package nào
+- Không hỗ trợ phân quyền chi tiết theo từng package
+
+---
 
 ## Upstream Repositories
 
-- A CodeArtifact repository can have other CodeArtifact repositories as Upstream Repository
-- Having an upstream, allows a package manager client to access the packages that are contained in more then one repository using a single endpoint
-- We can have up to 10 upstream repositories to a repo
-- A repository can have an external connection (it can have only one!). Example: public npm repo
+- Một CodeArtifact repository có thể có các CodeArtifact repository khác làm upstream repository
+- Có upstream cho phép package manager client truy cập package từ nhiều repository thông qua một endpoint duy nhất
+- Có thể cấu hình tối đa 10 upstream repositories cho một repository
+- Một repository có thể có external connection (chỉ 1 cái)
+  - Ví dụ: kết nối tới public npm repository
+
+---
 
 ## External Connections
 
-- An external connection is a connection between a CodeArtifact Repository and an external/public repository such as Maven Central, npm, PyPI, NuGet, etc.
-- Allows us to fetch packages that are not already present in our CodeArtifact Repository
-- A repository has a maximum of 1 external connection
+- External connection là kết nối giữa CodeArtifact repository và một public/external repository như:
+  - Maven Central
+  - npm
+  - PyPI
+  - NuGet
+- Cho phép tải các package chưa có sẵn trong CodeArtifact repository
+- Một repository chỉ được phép có tối đa 1 external connection
+
+---
 
 ## Retention
 
-- If a requested package version is found in an upstream repository, a reference to it is retained and is always available from the downstream repository
-- The retained package version is not affected by changes to the upstream repository
-- Intermediate repositories do not keep the package. Example: A -> B -> C -> npm; if B and C do not have a version requested by A, the downloaded version will be retained only in A (not in B and C)
+- Nếu một phiên bản package được tìm thấy trong upstream repository, một reference đến package đó sẽ được giữ lại (retained) và luôn có sẵn từ downstream repository
+- Phiên bản package được retain sẽ không bị ảnh hưởng bởi các thay đổi trong upstream repository
+- Các repository trung gian KHÔNG lưu package
+
+Ví dụ:
+
+A -> B -> C -> npm
+
+Nếu B và C không có phiên bản mà A yêu cầu,  
+thì package được tải về sẽ chỉ được retain trong A (không lưu ở B và C)
+
+---
 
 ## Domains
 
-- CodeArtifact domains make it easier to manage multiple repositories across an organization
-- We can use a domain to apply permissions across many repositories owned by different AWS accounts
-- An asset is stored only once in a domain, even if it's available from multiple repositories
-- Domains are useful for the following:
-    - Deduplicate storage: assets only need to be stored once in a domain, even if it is available in many repositories
-    - Fast copying: only metadata records are updated when we pull packages from upstream CodeArtifact Repositories into a downstream repository
-    - Easy Sharing across repositories and teams: all the assets and metadata is a domain are encrypted with a single KMS key
-    - Apply Policy across multiple repositories: a domain administrator can apply a policy across the domain as:
-        - Restricting which accounts have access to repositories in the domain
-        - Who can configure connections to public repositories
+- Domain của CodeArtifact giúp quản lý nhiều repository trong toàn bộ tổ chức dễ dàng hơn
+- Có thể dùng domain để áp dụng quyền (permissions) cho nhiều repository thuộc các AWS account khác nhau
+- Một asset chỉ được lưu một lần trong domain, kể cả khi nó có sẵn trong nhiều repository
+
+Domains hữu ích cho:
+
+### Khử trùng lặp lưu trữ (Deduplicate storage)
+- Asset chỉ cần lưu một lần trong domain dù được dùng bởi nhiều repository
+
+### Sao chép nhanh (Fast copying)
+- Chỉ cập nhật metadata khi pull package từ upstream CodeArtifact repository vào downstream repository
+
+### Chia sẻ dễ dàng giữa các team
+- Tất cả asset và metadata trong domain được mã hóa bằng một KMS key duy nhất
+
+### Áp dụng policy trên nhiều repository
+Domain administrator có thể áp dụng policy như:
+- Hạn chế AWS account nào được truy cập các repository trong domain
+- Kiểm soát ai được cấu hình kết nối tới public repository
